@@ -8,9 +8,9 @@ pub enum Cell {
 impl Cell {
     pub fn print(&self) {
         match &self {
-            Self::TRUE => print!("O"),
-            Self::FALSE => print!("X"),
-            Self::UNKNOWN => print!("?"),
+            Self::TRUE => print!("{:^2}", "O"),
+            Self::FALSE => print!("{:^2}", "X"),
+            Self::UNKNOWN => print!("{:^2}", "?"),
         }
     }
 }

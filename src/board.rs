@@ -30,10 +30,47 @@ impl Board {
     }
 
     pub fn print(&self) {
-        for row in &self.board {
-            for cell in row {
-                cell.print();
-                print!(" ");
+        let cons = &self.rows.iter().fold(0, |cons, row| if cons < row.len() { row.len() } else { cons });
+        let &cons = &self.cols.iter().fold(*cons, |cons, col| if cons < col.len() { col.len() } else { cons });
+
+        for i in 0..cons + self.height {
+            for j in 0..cons + self.width {
+                // Print placeholder.
+                if i < cons && j < cons {
+                    print!("{:^2}", "#");
+                }
+
+                // Print row constraints.
+                else if i >= cons && j < cons {
+                    let line = &self.rows[i - cons];
+                    
+                    let idx = cons - j;
+                    if idx <= line.len() {
+                        print!("{:^2}", line[line.len() - idx]);
+                    } else {
+                        print!("{:^2}", " ");
+                    }
+                }
+                
+                // Print column constraints.
+                else if i < cons && j >= cons {
+                    let line = &self.cols[j - cons];
+
+                    let idx = cons - i;
+                    if idx <= line.len() {
+                        print!("{:^2}", line[line.len() - idx]);
+                    } else {
+                        print!("{:^2}", " ");
+                    }
+                }
+                
+                // Print board.
+                else {
+                    let cell = &self.board[i - cons][j - cons];
+                    cell.print();
+                }
+
+                print!("{:^2}", " ");
             }
             println!();
         }
