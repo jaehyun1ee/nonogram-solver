@@ -69,20 +69,8 @@ impl Board {
         }
     }
 
-    fn decode_board<'c>(&mut self, eboard: &Vec<Vec<Bool<'c>>>, sboard: &Model<'c>) {
-        for r in 0..self.height {
-            for c in 0..self.width {
-                let ecell = &eboard[r][c];
-                let scell = Bool::as_bool(&sboard.eval(ecell, true).unwrap()).unwrap();
-
-                self.board[r][c] = if scell { Cell::TRUE } else { Cell::FALSE };
-            }
-        }
-    }
-
     fn encode_board<'c>(&self, context: &'c Context) -> Vec<Vec<Bool<'c>>>  {
         let mut eboard = Vec::new();
-
         for r in 0..self.height {
             let mut erow = Vec::new();
             for c in 0..self.width {
@@ -95,9 +83,36 @@ impl Board {
         eboard
     }
 
+    fn transpose_board<'c>(eboard: &Vec<Vec<Bool<'c>>>) -> Vec<Vec<Bool<'c>>> {
+        let height = eboard.len();
+        let width = eboard[0].len();
+        
+        let mut eboard_t = Vec::new();
+        for c in 0..width {
+            let mut erow_t = Vec::new();
+            for r in 0..height {
+                let ecell = eboard[r][c].clone();
+                erow_t.push(ecell);
+            }
+            eboard_t.push(erow_t);
+        }
+
+        eboard_t
+    }
+
+    fn decode_board<'c>(&mut self, eboard: &Vec<Vec<Bool<'c>>>, sboard: &Model<'c>) {
+        for r in 0..self.height {
+            for c in 0..self.width {
+                let ecell = &eboard[r][c];
+                let scell = Bool::as_bool(&sboard.eval(ecell, true).unwrap()).unwrap();
+
+                self.board[r][c] = if scell { Cell::TRUE } else { Cell::FALSE };
+            }
+        }
+    }
+
     fn encode_hints<'c>(&self, eboard: &Vec<Vec<Bool<'c>>>, context: &'c Context) -> Bool<'c> {
         let mut ehints = Vec::new();
-
         for r in 0..self.height {
             for c in 0..self.width {
                 let ecell = &eboard[r][c];
@@ -118,73 +133,27 @@ impl Board {
     }
 
     fn encode_rows<'c>(&self, eboard: &Vec<Vec<Bool<'c>>>, context: &'c Context) -> Bool<'c> {
-        let mut erows = Vec::new();
-
-        for r in 0..self.height {
-            println!("ROW {r}");
-            let row = &self.rows[r];
-            let mut erow = Vec::new();
-
-            let splits = split_line(&row, self.width);
-            println!("has {} clauses", splits.len());
-            for split in splits {
-                let mut c = 0;
-                let mut esplit = Vec::new();
-
-                for i in 0..split.len() {
-                    // Uncolored cells.
-                    let space = split[i];
-                    let space = if i == 0 || i == split.len() - 1 { space } else { space + 1 };
-                    for _ in 0..space {
-                        let ecell = &eboard[r][c];
-                        esplit.push(ecell.not());
-                        c += 1;
-                    }
-
-                    if i == split.len() - 1 {
-                        break;
-                    }
-
-                    // Colored cells. 
-                    let space = row[i];
-                    for _ in 0..space {
-                        let ecell = &eboard[r][c];
-                        esplit.push(ecell.clone());
-                        c += 1;
-                    }
-                }
-
-
-                let esplit: Vec<&Bool<'c>> = esplit.iter().collect();  
-                let esplit = Bool::and(&context, esplit.as_slice());
-                erow.push(esplit);
-            }
-
-            let erow: Vec<&Bool<'_>> = erow.iter().collect();  
-            let erow = Bool::or(&context, erow.as_slice());
-            erows.push(erow);
-        }
-
-        let erows: Vec<&Bool<'_>> = erows.iter().collect();  
-        let erows = Bool::and(&context, erows.as_slice());
-
-        erows
+        Self::encode_lines(&self.rows, &eboard, &context)
     }
 
     fn encode_cols<'c>(&self, eboard: &Vec<Vec<Bool<'c>>>, context: &'c Context) -> Bool<'c> {
-        let mut ecols = Vec::new();
+        Self::encode_lines(&self.cols, &Self::transpose_board(eboard), &context)
+    }
+    
+    fn encode_lines<'c>(lines: &Vec<Vec<usize>>, eboard: &Vec<Vec<Bool<'c>>>, context: &'c Context) -> Bool<'c> {
+        let height = eboard.len();
+        let width = eboard[0].len();
 
-        for c in 0..self.width {
-            println!("COL {c}");
-            let col = &self.cols[c];
-            let mut ecol = Vec::new();
+        let mut elines = Vec::new();
+        for r in 0..height {
+            let line = &lines[r];
 
-            let splits = split_line(&col, self.height);
-            println!("has {} clauses", splits.len());
+            let mut eline = Vec::new();
+            let splits = split_line(&line, width);
             for split in splits {
-                let mut r = 0;
-                let mut esplit = Vec::new();
+                let mut c = 0;
 
+                let mut esplit = Vec::new();
                 for i in 0..split.len() {
                     // Uncolored cells.
                     let space = split[i];
@@ -192,7 +161,7 @@ impl Board {
                     for _ in 0..space {
                         let ecell = &eboard[r][c];
                         esplit.push(ecell.not());
-                        r += 1;
+                        c += 1;
                     }
 
                     if i == split.len() - 1 {
@@ -200,28 +169,28 @@ impl Board {
                     }
 
                     // Colored cells. 
-                    let space = col[i];
+                    let space = line[i];
                     for _ in 0..space {
                         let ecell = &eboard[r][c];
                         esplit.push(ecell.clone());
-                        r += 1;
+                        c += 1;
                     }
                 }
 
                 let esplit: Vec<&Bool<'c>> = esplit.iter().collect();  
                 let esplit = Bool::and(&context, esplit.as_slice());
-                ecol.push(esplit);
+                eline.push(esplit);
             }
 
-            let ecol: Vec<&Bool<'_>> = ecol.iter().collect();  
-            let ecol = Bool::or(&context, ecol.as_slice());
-            ecols.push(ecol);
+            let eline: Vec<&Bool<'_>> = eline.iter().collect();  
+            let eline = Bool::or(&context, eline.as_slice());
+            elines.push(eline);
         }
 
-        let ecols: Vec<&Bool<'_>> = ecols.iter().collect();  
-        let ecols = Bool::and(&context, ecols.as_slice());
+        let elines: Vec<&Bool<'_>> = elines.iter().collect();  
+        let elines = Bool::and(&context, elines.as_slice());
 
-        ecols
+        elines
     }
 }
 
@@ -242,8 +211,8 @@ fn split_line(line: &Vec<usize>, length: usize) -> Vec<Vec<usize>> {
 }
 
 fn split(n: usize, buckets: usize, index: usize, current: &mut Vec<usize>, splits: &mut Vec<Vec<usize>>) {
-    if index == buckets {
-        current[index - 1] += n;
+    if index == buckets - 1 {
+        current[index] = n;
         splits.push(current.clone());
         return;
     }
